@@ -17,7 +17,7 @@ definition "same_dom c \<equiv> (\<forall>t\<in>(snd c). \<forall>n. case_sum (\
 lemma same_domI: "(\<forall>t\<in>(snd c). \<forall>n. case_sum (\<lambda>s. dom s = fst c) (\<lambda>_. True) (index t n)) \<Longrightarrow> same_dom c"
   by (clarsimp simp: same_dom_def)
 
-definition "non_empty c \<equiv> (\<forall>t\<in>(snd c). lengthS t \<noteq> Some 0)"
+definition "non_empty c \<equiv> (\<forall>t\<in>(snd c). \<exists>n. lengthS t = Some n \<and> n \<noteq> 0)"
 
 definition valid_command :: "('var, 'val) command => bool" where
  "valid_command c \<equiv> same_dom c \<and> non_empty c"
@@ -61,19 +61,7 @@ lemma valid_has_first: "valid_command c \<Longrightarrow> t \<in> snd c \<Longri
   apply (clarsimp simp: valid_command_def)
   apply (clarsimp simp: non_empty_def)
   apply (erule_tac x=t in ballE; clarsimp?)
-  apply (clarsimp simp: lengthS_def first_def split: if_splits sum.splits)
-  apply (clarsimp simp: finiteS_def)
-  by (erule_tac x=0 in allE, clarsimp)
-
-lemma different_doms_no_glue: "valid_command c \<Longrightarrow> valid_command c' \<Longrightarrow> fst c \<noteq> fst c' \<Longrightarrow> gluing_seq d c c' = (d, {})"
-  apply (clarsimp simp: gluing_seq_def valid_command_def)
-  
-  apply (clarsimp simp: match_def)
-  apply (clarsimp simp: last_def first_def valid_has_first split: sum.splits if_splits)
-      apply (metis dom_on_state_eq sum.disc(1))
-  
-  oops
-
+  by (clarsimp simp: lengthS_def first_def split: if_splits sum.splits)
 
 
 definition "restrict_trace d = map_trace (\<lambda>s. restrict_map s d)"
@@ -400,7 +388,7 @@ lemma valid_dom_fst: "valid_command a \<Longrightarrow> \<forall>x\<in>(snd a). 
   apply (clarsimp simp: valid_command_def dom_t_def)
   apply (intro set_eqI iffI; clarsimp simp: states_def)
    apply (metis domI dom_on_state_eq sum.disc(1) sum.sel(1))
-  by (metis Least_eq_0 dom_on_state_eq finiteS_def lengthS_def non_empty_def sum.collapse(1))
+  by (metis first_def sum.case_eq_if sum.collapse(1) valid_command_def valid_dom_eq valid_has_first)
 
 lemma valid_dom_t_restrict: "valid_command a \<Longrightarrow> t \<in> snd a \<Longrightarrow> dom_t (restrict_trace d t) = fst a \<inter> d"
   apply (clarsimp simp: dom_t_def states_def restrict_trace_def index_map_sum split: sum.splits)
@@ -409,9 +397,8 @@ lemma valid_dom_t_restrict: "valid_command a \<Longrightarrow> t \<in> snd a \<L
   apply (subgoal_tac "x \<in> dom (aa |` d)")
     apply (metis IntE dom_restrict sum.disc(1) sum.sel(1) valid_dom_eq)
    apply blast
-  by (metis (no_types, lifting) Int_iff bot_nat_0.not_eq_extremum dom_restrict finiteS_def
-      index_map_eqD index_map_sum isl_map_sum lengthS_def non_empty_def not_less_Least 
-      sum.collapse(1) valid_command_def valid_dom_eq)
+  by (smt (verit, del_insts) IntI dom_restrict first_def isl_map_sum map_sum_sel(1)
+        sum.case_eq_if sum.collapse(1) valid_dom_eq valid_has_first)
 
 lemma in_cyl_iff: " valid_command (c, C) \<Longrightarrow> c \<subseteq> d \<Longrightarrow> valid_command (d, A) \<Longrightarrow> a \<in> A \<Longrightarrow>  
       a \<in> (cyl_set C d) \<longleftrightarrow> (\<exists>c'. c' \<in> C \<and> restrict_trace c a = c')" 
@@ -553,7 +540,6 @@ notation "rest_set" ("_ \<lhd> _")
 
 
 lemma restrict_cyl_galois_sets: " valid_command (d, b) \<Longrightarrow> valid_command (d', a) \<Longrightarrow> d \<subseteq> d' \<Longrightarrow>  (d \<lhd> a) \<subseteq> b \<longleftrightarrow> (a) \<subseteq> (b \<rhd> d') " 
-  find_theorems name:galois
   apply (frule  (1) restrict_cyl_galois) back
   apply (clarsimp simp: refinement_order_def)
   apply (clarsimp simp: functorial')
@@ -855,15 +841,15 @@ lemma relational_join_is_inf: "valid_command c \<Longrightarrow> valid_command d
      apply (intro valid_commandI same_domI; clarsimp?)
       apply (simp add: sum.case_eq_if)
      apply (clarsimp simp: non_empty_def)
-     apply (metis lengthS_restrict non_empty_def valid_command_def)
+  apply (metis bot_nat_0.not_eq_extremum lengthS_restrict non_empty_def valid_command_def)
     apply (blast)
    apply (clarsimp)
    apply (rule in_cylI[where c="fst d"], clarsimp)
   apply (blast)
      apply (intro valid_commandI same_domI; clarsimp?)
       apply (simp add: sum.case_eq_if)
-     apply (clarsimp simp: non_empty_def)
-     apply (metis lengthS_restrict non_empty_def valid_command_def)
+    apply (clarsimp simp: non_empty_def)
+  apply (metis bot_nat_0.not_eq_extremum lengthS_restrict non_empty_def valid_command_def)
     apply (blast)
   apply (clarsimp)
   apply (drule in_cylD[rotated 2, where c="fst c"], clarsimp, blast, clarsimp)
@@ -919,19 +905,6 @@ lemma gc_join_sup_iff: "valid_command c \<Longrightarrow> valid_command d \<Long
   by (smt (z3) eq_snd_iff fst_conv gc_join_def inf.order_iff
       refinement_order_def snd_restrict_simp sup.orderE sup_ge2 valid_restrict_eq)
  
-
-lemma valid_command_conv: "valid_command (C, c) \<Longrightarrow> valid_command (C, c') \<Longrightarrow> valid_command (C, conv f c c')"
-  apply (clarsimp simp: conv_def)
-  apply (clarsimp simp: valid_command_def)
-  apply (intro conjI)
-   apply (clarsimp simp: same_dom_def split: sum.splits)
-  oops
-
-
-
-lemma prop_6: "valid_command (A, a) \<Longrightarrow> (B \<lhd> (a \<rhd> A \<union> B)) = ((A \<inter> B \<lhd> a) \<rhd> B)"
-  apply (rule antisym)
-  oops
 
 lemma conv_mono_r: "Q \<subseteq> Q' \<Longrightarrow> conv f P Q \<subseteq> conv f P Q'"
   apply (clarsimp simp: conv_def)
@@ -1113,21 +1086,21 @@ lemma match_match_glue: "match y z \<Longrightarrow> match x (y -o z) \<Longrigh
    apply (metis infinite_index_iff trace_eqI)
   by (simp add: glue_def)
 
-lemma match_match_glue': "match y z \<Longrightarrow> match x (y -o z) \<Longrightarrow> match (x -o y) z" sorry
-  apply (clarsimp simp: match_def first_is_some_iff_index first_None_iff first_is_some_iff_index' first_None_iff' last_def split: if_splits sum.splits)
-          apply (metis (no_types, lifting) One_nat_def diff_is_0_eq finite_index_iff first_def isl_iff 
-    lengthS_def less_Suc_eq_0_disj linordered_semidom_class.add_diff_inverse option.sel order_le_less plus_1_eq_Suc sum.disc(1))
-          apply (metis (no_types, lifting) One_nat_def diff_is_0_eq finite_index_iff first_def isl_iff 
-    lengthS_def less_Suc_eq_0_disj linordered_semidom_class.add_diff_inverse option.sel order_le_less plus_1_eq_Suc sum.disc(1))
-        apply (metis One_nat_def diff_0_eq_0 finite_index_iff first_def index_tail_iff isl_iff not_one_less_zero sum.disc(1))
-       apply (metis bot_nat_0.not_eq_extremum finite_index_iff first_None_iff' first_def lengthS_def option.sel)
-      apply (metis finite_index_iff first_None_iff' first_def gr_zeroI lengthS_def option.sel)
-     apply (metis diff_Suc_less first_None_iff' gr_zeroI isl_iff lengthS_def option.distinct(1) option.exhaust_sel sum.disc(2))
-    apply (simp add: glue_def)
-  apply (simp add: glue_def)
-  apply (simp add: glue_def)
-  done
 
+lemma matchI: "(\<And>s s'. last x = Some s \<Longrightarrow> first y = Some s' \<Longrightarrow> s = s') \<Longrightarrow> last x = None \<longleftrightarrow> first y = None \<Longrightarrow> 
+   match x y" 
+  apply (case_tac "finiteS x")
+   apply (subst match_def last_def first_def)+
+   apply (clarsimp split: sum.splits)
+   apply (safe; clarsimp)
+        apply (simp add: StateTrace.last_def)
+  apply (simp add: StateTrace.last_def)
+      apply (simp add: StateTrace.last_def first_def split: sum.splits)
+      apply (simp add: StateTrace.last_def first_def split: sum.splits)
+      apply (simp add: StateTrace.last_def first_def split: sum.splits)
+      apply (simp add: StateTrace.last_def first_def split: sum.splits)
+  apply (clarsimp simp: match_def)
+  done
 
 lemma finiteS_glue[simp]: "finiteS (x -o y) \<longleftrightarrow> finiteS x \<and> finiteS y " 
   apply (intro iffI; clarsimp simp: finiteS_def)
@@ -1141,7 +1114,68 @@ lemma finiteS_glue[simp]: "finiteS (x -o y) \<longleftrightarrow> finiteS x \<an
   by (metis diff_add_inverse isl_monotone le0 not0_implies_Suc not_add_less1)
 
 
-lemma "conv gluing_seq' c (conv gluing_seq' d e) = conv gluing_seq' (conv gluing_seq' c d) e"
+lemma lengthS_none_infinite[simp]: "lengthS x = None \<Longrightarrow> \<not>finiteS x"
+  apply (clarsimp simp: finiteS_def)
+  by (metis finiteS_def lengthS_def option.distinct(1))
+
+
+lemma index_isl_length[simp]: "index x n = Inl s \<Longrightarrow> lengthS x = Some m \<Longrightarrow> n < m"
+  by (metis isl_iff sum.disc(1))
+
+lemma last_glue_last_r: "match x y \<Longrightarrow> lengthS x \<noteq> None \<Longrightarrow>  StateTrace.last (x -o y) = StateTrace.last y"
+  apply (clarsimp simp: last_def split: sum.splits if_splits)
+  apply (case_tac "finiteS (x -o y)"; case_tac "lengthS x"; 
+         case_tac "lengthS y"; clarsimp simp: finite_index_iff lengthS_iff' index_tail_iff)
+   apply (safe; (clarsimp simp: isl_iff)?)
+        apply (smt (verit) StateTrace.last_def Suc_diff_Suc Suc_leI add_diff_cancel_left' diff_is_0_eq first_def isl_iff match_def nless_le not_less_eq option.sel plus_1_eq_Suc sum.case_eq_if sum.disc(1) sum.sel(1))
+       apply (metis add_0 diff_0_eq_0 first_None_iff' first_def isl_iff match_empty_iff old.sum.simps(6) option.sel sum.disc(1) verit_comp_simplify1(1))
+      apply (metis isl_iff sum.disc(2))
+     apply (metis One_nat_def Suc_diff_Suc Suc_pred diff_add_zero gr_zeroI 
+            index_isl_length numeral_2_eq_2 plus_1_eq_Suc sum.sel(1) zero_less_diff)
+    apply (metis diff_Suc_less first_None_iff' first_def 
+           index_isl_length isl_iff less_nat_zero_code sum.case_eq_if sum.disc(2))
+   apply (metis Inl_Inr_False Suc_diff_Suc Suc_pred add_diff_cancel_right' 
+    bot_nat_0.not_eq_extremum isl_iff match_empty_iff numeral_2_eq_2 plus_1_eq_Suc sum.disc(1) zero_less_diff)
+  by (metis lengthS_def option.distinct(1))
+
+
+lemma match_match_glue': "match y z \<Longrightarrow>  match x y \<Longrightarrow> match (x -o y) z"
+apply (case_tac "lengthS x", clarsimp?)
+   apply (simp add: match_def)
+  apply (case_tac "lengthS y", clarsimp?)
+   apply (simp add: match_def)
+  apply (rule matchI)
+   apply (case_tac "finiteS (x -o y)")
+  apply (clarsimp simp: last_glue_last_r)
+    apply (clarsimp simp: match_def split: if_splits)
+  apply (clarsimp simp: last_glue_last_r)
+   apply (metis StateTrace.last_def match_def option.distinct(1) option.inject)
+  apply (clarsimp simp: last_glue_last_r)
+  apply (clarsimp simp: match_def split: if_splits)
+   apply (metis lengthS_def option.distinct(1))
+  by (metis lengthS_def option.distinct(1))
+
+
+
+lemma match_glue_match: "finiteS x \<Longrightarrow> match x y  \<Longrightarrow> match (x -o y) z \<Longrightarrow> match y z"
+ apply (case_tac "lengthS x"; clarsimp?)
+  apply (case_tac "lengthS y"; clarsimp?)
+   apply (simp add: match_def)
+  apply (rule matchI)
+   apply (metis (mono_tags, lifting) StateTrace.last_def 
+       last_glue_last_r match_def option.discI option.inject)
+  by (metis finiteS_glue last_glue_last_r lengthS_def match_def option.distinct(1))
+
+lemma match_glue_match': "match x y \<Longrightarrow> match y z \<Longrightarrow> match x (y -o z)"
+ apply (case_tac "lengthS x"; clarsimp?)
+   apply (clarsimp simp: match_def)
+  apply (rule matchI)
+   apply (metis (no_types, lifting) bot_nat_0.not_eq_extremum finite_index_iff first_None_iff'
+                        first_def glue_def lengthS_def match_def option.distinct(1) option.sel)
+  by (smt (verit, del_insts) diff_0_eq_0 finiteS_glue finite_index_iff first_None_iff' first_def gr_zeroI index_tail_iff isl_iff lengthS_def match_def match_empty_iff option.distinct(1) option.sel zero_less_diff)
+
+
+lemma gluing_seq_assoc: "valid_command (C, c) \<Longrightarrow> conv gluing_seq' c (conv gluing_seq' d e) = conv gluing_seq' (conv gluing_seq' c d) e" 
   apply (intro set_eqI iffI)
    apply (clarsimp simp: conv_def gluing_seq'_def)
    apply (rule_tac x=xa in bexI)
@@ -1155,15 +1189,28 @@ lemma "conv gluing_seq' c (conv gluing_seq' d e) = conv gluing_seq' (conv gluing
         apply (case_tac "finiteS xa"; case_tac "finiteS xb"; clarsimp simp: finite_index_iff infinite_index_iff index_tail_iff lengthS_iff')
   apply (subgoal_tac "\<exists>n n'. lengthS xa = Some n \<and> lengthS xb = Some n'", clarsimp)
          apply (smt (verit) Nat.diff_add_assoc Suc_diff_1 Suc_diff_Suc diff_is_0_eq gr_zeroI index_eq_finished int_ops(6) isl_iff less_Suc_eq match_empty_iff not_less_eq of_nat_0_less_iff of_nat_add plus_1_eq_Suc zero_less_diff zero_less_one)
+  apply (meson lengthS_def)
         apply (simp add: lengthS_def)
-  apply (erule match_match_glue, assumption)
-      apply (erule match_match_glue', assumption)
+       apply (erule match_match_glue, assumption)
+  using match_match_glue match_match_glue' apply blast
      apply (clarsimp)+
   apply (clarsimp simp: conv_def gluing_seq'_def)
   apply (rule_tac x=xa in bexI)
    apply (rule_tac x=xb in bexI)
-     apply (rule_tac x=xc in bexI)
-  sorry
+    apply (rule_tac x=xc in bexI)
+     apply (intro conjI)
+       apply (metis lengthS_def match_glue_match non_empty_def option.distinct(1) snd_conv valid_command_def)
+ apply (rule trace_eqI)
+  apply (subgoal_tac "match xb xc")
+        apply (case_tac "finiteS xa"; case_tac "finiteS xb"; clarsimp simp: finite_index_iff infinite_index_iff index_tail_iff lengthS_iff')
+  apply (subgoal_tac "\<exists>n n'. lengthS xa = Some n \<and> lengthS xb = Some n'", clarsimp)
+        apply (smt (verit) Nat.diff_add_assoc Suc_diff_1 Suc_diff_Suc diff_is_0_eq gr_zeroI 
+                           index_eq_finished int_ops(6) isl_iff less_Suc_eq match_empty_iff 
+                           not_less_eq of_nat_0_less_iff of_nat_add plus_1_eq_Suc zero_less_diff zero_less_one)
+    apply (meson lengthS_def)
+      apply (metis lengthS_def match_glue_match non_empty_def option.distinct(1) snd_conv valid_command_def)
+     apply (meson match_def match_glue_match match_glue_match')
+  by (clarsimp)+
 
 
 definition "takeS n t = liftF (\<lambda>m. if m < n then (index t m) else Inr Term)"
@@ -1171,8 +1218,7 @@ definition "takeS n t = liftF (\<lambda>m. if m < n then (index t m) else Inr Te
 definition "dropS n t = liftF (\<lambda>m. index t (m + n))"
 
 lemma inf_left_glue_left: "lengthS x = None \<Longrightarrow>  (x -o y) = x"
-  apply (clarsimp simp: glue_def )
-  by (simp add: lengthS_def)
+  by (clarsimp simp: glue_def )
 
 lemma cyl_exists: "valid_command (C, c) \<Longrightarrow> x \<in> c \<Longrightarrow> C \<subseteq> D \<Longrightarrow>  \<exists>x'. x' \<in> (c \<rhd> D)" 
  apply (rule_tac x="map_trace (\<lambda>t. junk (D) ++ t) x" in exI)
@@ -1246,9 +1292,11 @@ lemma partition_glue': " y \<noteq> 0 \<Longrightarrow> lengthS x = None \<Longr
   by (clarsimp simp: match_def last_def first_def index_take lengthS_takeS_min'
       index_tail_iff index_drop lengthS_takeS_min split: sum.splits option.splits)
 
-thm in_cyl_iff[no_vars]
-
-
+lemma lengthS_dropSI: "lengthS t = Some m \<Longrightarrow> lengthS (dropS n t) = Some (m - n)"
+  apply (rule lengthS_eqI)
+   apply (clarsimp)
+  apply (clarsimp simp: index_drop isl_iff)
+  using less_diff_conv by presburger
 
 lemma valid_dropS: "valid_command (d, S) \<Longrightarrow> x \<in> S \<Longrightarrow> \<not>(\<exists>m. lengthS x = Some m \<and> m \<le> n)
                              \<Longrightarrow>  valid_command (d, {dropS n x})"
@@ -1258,9 +1306,7 @@ lemma valid_dropS: "valid_command (d, S) \<Longrightarrow> x \<in> S \<Longright
    apply (clarsimp simp: index_drop)
    apply (metis fst_conv)
   apply (clarsimp simp: non_empty_def)
-  by (metis (mono_tags, lifting) add_0 bot_nat_0.extremum_strict
-      diff_is_0_eq  finiteS_def index_drop isl_iff 
-     lengthS_def not_less_iff_gr_or_eq zero_less_diff)
+  using lengthS_dropSI by fastforce
 
 lemma valid_takeS: "valid_command (d, S) \<Longrightarrow> x \<in> S \<Longrightarrow> n > 0 
                              \<Longrightarrow>  valid_command (d, {takeS n x})"
@@ -1270,8 +1316,7 @@ lemma valid_takeS: "valid_command (d, S) \<Longrightarrow> x \<in> S \<Longright
    apply (clarsimp simp: index_take)
    apply (metis fst_conv)
   apply (clarsimp simp: non_empty_def)
-  
-  by (metis first_None_iff first_def index_take)
+  by (meson lengthS_takeS_min min_less_iff_conj)
 
 lemma lengthS_glue_le: "lengthS (x -o y) = Some n \<Longrightarrow> lengthS x = Some m \<Longrightarrow> m \<le> n"
   by (metis finite_index_iff isl_iff leI lengthS_def
@@ -1323,106 +1368,6 @@ lemma distrib_rest_conv_gluing_seq: "valid_command (C', c) \<Longrightarrow> val
   done
 
 
-lemma conv_distrib_gluing_cyl: "valid_command (C, c) \<Longrightarrow> valid_command (C, c') \<Longrightarrow> C \<subseteq> d \<Longrightarrow>
-  ((conv (gluing_seq') c c') \<rhd> d) = conv gluing_seq' (c \<rhd> d) (c' \<rhd> d)"
-  apply (rule antisym)
-   apply (clarsimp)
-   apply (drule in_cylD[rotated 2, where c=C])
-  oops
-     apply (simp add: valid_command_conv)
-    apply (clarsimp)
-   apply (clarsimp)
-   apply (clarsimp simp: conv_def)
-   apply (clarsimp simp: gluing_seq'_def)
-   apply (case_tac "lengthS xa = None")
-    apply (clarsimp simp: inf_left_glue_left)
-    apply (rule_tac x=x in bexI)
-  apply (frule (1) cyl_exists[where c=c' and D=d], clarsimp)
-     apply (clarsimp)
-     apply (rule_tac x=x' in bexI)
-      apply (clarsimp simp: inf_left_glue_left)
-      apply (clarsimp simp: match_inf, assumption)
-    apply (simp add: in_cyl_iff)
-   apply (clarsimp)
-   apply (rule_tac x="takeS y x" in bexI)
-    apply (rule_tac x="dropS (y - 1) x" in bexI)
-     apply (subgoal_tac "y \<noteq> 0")
-  apply (metis lengthS_def lengthS_glue_le lengthS_restrict partition_glue partition_glue')
-      apply (metis first_None_iff' lengthS_constS lengthS_takeS_min' match_empty_iff match_inf snd_conv valid_has_first)
-    apply (erule in_cylI, clarsimp)
-     apply (erule valid_dropS, clarsimp)
-     apply (clarsimp)
-     apply (metis One_nat_def add_diff_inverse_nat first_None_iff' le_zero_eq lengthS_glue_le lengthS_restrict nat_diff_split not_less_eq_eq plus_1_eq_Suc snd_conv valid_has_first)
-    apply (rule_tac x=xb in exI; clarsimp)
-    apply (rule restrict_drop_eq, assumption, clarsimp, clarsimp)
-  apply (metis first_None_iff' lengthS_def match_empty_iff option.distinct(1) snd_conv valid_has_first)
-   apply (erule in_cylI, clarsimp)
-    apply (erule valid_takeS)
-     apply (clarsimp)
-  apply (metis bot_nat_0.not_eq_extremum lengthS_def match_empty_iff non_empty_def option.distinct(1) snd_conv valid_command_def)
-   apply (clarsimp)
-  apply (simp add: restrict_take_eq)
-  apply (subst restrict_cyl_galois_sets[symmetric])
-  apply (erule valid_command_conv, assumption)
-   apply (simp add: valid_command_conv valid_cylI)
-  apply (rule order_trans)
-   apply (rule distrib_rest_conv_gluing_seq)
-     apply (rule valid_cylI, assumption, clarsimp)
-    apply (erule valid_cylI, clarsimp, clarsimp)
-  by (simp add: galois_inj)
-
-  
-
-lemma lift_op_assoc: assumes conv_assoc: "(\<And>c e d. conv f c (conv f d e) = conv f (conv f c d) e)"
-assumes conv_distrib: "(\<And>c c' d. ((conv f c c') \<rhd> d) = (conv f (c \<rhd> d) (c' \<rhd> d)))"
-  shows "valid_command d \<Longrightarrow> 
-   valid_command c \<Longrightarrow> valid_command e \<Longrightarrow>   
-   lift_op f c (lift_op f d e) \<preceq> (lift_op f (lift_op f c d) e)"
-  apply (subst gc_join_sup_iff)
-    apply (clarsimp simp: lift_op_def Let_unfold)
-    prefer 3
-    apply (clarsimp simp: gc_join_def)
-    apply (rule prod_eqI; clarsimp?)
-     apply (clarsimp simp: lift_op_def Let_unfold)
-     apply blast
-    apply (clarsimp simp: fst_lift_op)
-    apply (clarsimp simp: Un_assoc)
-    apply (clarsimp simp: lift_op_def Let_unfold)
-    apply (smt (verit, ccfv_threshold) Int_Un_eq(2) Un_Int_eq(4) conv_assoc conv_distrib cyl_cyl prod.collapse restrict_cyl sup.orderE sup_assoc sup_ge1 valid_restrict_iff valid_valid_conv)
-   apply (simp add: valid_valid_conv)
-  apply (clarsimp simp: lift_op_def Let_unfold)
-  by (simp add: valid_valid_conv)
-
-lemma lift_op_assoc: assumes conv_assoc: "(\<And>c e d. conv f c (conv f d e) = conv f (conv f c d) e)"
-  shows "valid_command d \<Longrightarrow> 
-   valid_command c \<Longrightarrow> valid_command e \<Longrightarrow>   
-   lift_op f c (lift_op f d e) \<preceq> (lift_op f (lift_op f c d) e)"
-  apply (clarsimp simp: refinement_order_def fst_lift_op)
-  apply (intro conjI; clarsimp)
-  apply (clarsimp simp: restrict_def)
-  apply (clarsimp simp: lift_op_def Let_unfold)
-  apply (erule_tac x="xa" in subset_imageD[rotated])
-  apply (subst restrict_cyl_galois_sets)
-    apply (rule valid_valid_conv)
-     apply (rule valid_valid_conv)
-      apply (clarsimp)+
-     apply (rule valid_valid_conv)
-    apply (clarsimp)
-     apply (rule valid_valid_conv)
-    apply (clarsimp)
-   apply (clarsimp)
-  oops
-  apply (subst distrib_conv)
-   apply (fastforce)
-  apply (subst distrib_conv)
-   apply (fastforce)
-  apply (subst conv_assoc)
-  apply (simp only: Un_assoc)
-  apply (subst valid_command_cyl[where c="conv f (conv f (snd c \<rhd> fst c \<union> (fst d \<union> fst e)) (snd d \<rhd> fst c \<union> (fst d \<union> fst e))) (snd e \<rhd> fst c \<union> (fst d \<union> fst e))" and d="fst c \<union> (fst d \<union> fst e)", symmetric])
-  using valid_command_cyl
-   apply (smt (verit, ccfv_SIG) prod.collapse subset_Un_eq sup_commute sup_ge2 sup_left_commute valid_cylI valid_valid_conv) 
-  apply (rule order_refl)
-  done
 
 lemma restrict_distrib_conv: "(\<And>d t t'. d \<lhd> f t t' \<subseteq> f (restrict_trace d t) (restrict_trace d t')) \<Longrightarrow>
     d \<lhd> conv f t t' \<subseteq> conv f (d \<lhd> t) (d \<lhd> t')"
@@ -1452,7 +1397,6 @@ lemma monotone_lift_op: "valid_command d \<Longrightarrow> valid_command d' \<Lo
   apply (smt (verit) cyl_cyl mono_cyl refinement_order_def restrict_cyl_galois_sets sup.absorb_iff2 sup_assoc sup_commute sup_ge1 valid_cylI')
   done
 
-thm relational_join_def
 
 lemma monotone_gluing_seq: "valid_command d \<Longrightarrow> valid_command d' \<Longrightarrow> 
    valid_command c \<Longrightarrow> valid_command c' \<Longrightarrow>  c \<preceq> c' \<Longrightarrow> d \<preceq> d' \<Longrightarrow>  
@@ -1472,7 +1416,7 @@ lemma valid_relational_join: "valid_command c \<Longrightarrow> valid_command d 
    apply (smt (verit) Int_Un_eq(3) UnCI dom_on_state_eq
         fst_conv snd_conv sum.case_eq_if sup_ge1 valid_command_def valid_cylI')
   apply (clarsimp simp: non_empty_def)
-  by (metis first_None_iff' snd_conv sup_ge1 valid_cylI' valid_has_first)
+  by (metis bot_nat_0.not_eq_extremum non_empty_def snd_conv sup_ge1 valid_command_def valid_cylI')
 
 lemma relational_join_mono: "valid_command d \<Longrightarrow> valid_command d' \<Longrightarrow> 
    valid_command c \<Longrightarrow> valid_command c' \<Longrightarrow>  c \<preceq> c' \<Longrightarrow> d \<preceq> d' \<Longrightarrow>
@@ -1507,7 +1451,9 @@ lemma valid_gluing_seq: "valid_command a \<Longrightarrow>  valid_command c \<Lo
     apply (metis dom_on_state_eq fst_conv snd_conv sum.disc(1) sum.sel(1) sup_commute sup_ge1 valid_command_def valid_cylI')
    apply (metis dom_on_state_eq fst_conv snd_conv sum.disc(1) sum.sel(1) sup_ge1 valid_command_def valid_cylI')
   apply (clarsimp simp: non_empty_def lift_op_def Let_unfold conv_def gluing_seq'_def)
-  by (metis finiteS_glue first_None_iff' le_zero_eq lengthS_def lengthS_glue_le snd_conv sup_ge1 valid_cylI' valid_has_first)
+  by (metis (no_types, lifting) bot_nat_0.not_eq_extremum finiteS_glue in_cyl_iff le_zero_eq
+                                lengthS_def lengthS_glue_le lengthS_restrict non_empty_def
+                                prod.collapse sup_ge1 sup_ge2 valid_command_def valid_cylI')
 
   
 
@@ -1555,13 +1501,12 @@ lemma valid_command_inf: "valid_command (C, c) \<Longrightarrow> valid_command (
    apply (clarsimp)
    apply (simp add: sum.case_eq_if valid_dom_eq)
   apply (clarsimp simp: non_empty_def)
-  by (metis first_None_iff' snd_conv valid_has_first)
+  by (simp add: non_empty_def valid_command_def)
 
-lemma valid_singletonI: "(\<And>n s. index x n = Inl s \<Longrightarrow> dom s = c) \<Longrightarrow> lengthS x \<noteq> Some 0 \<Longrightarrow>  valid_command (c, {x})"
+lemma valid_singletonI: "(\<And>n s. index x n = Inl s \<Longrightarrow> dom s = c) \<Longrightarrow> lengthS x = Some n \<Longrightarrow> n > 0  \<Longrightarrow>  valid_command (c, {x})"
   apply (intro valid_commandI same_domI, clarsimp)
    apply (simp add: sum.case_eq_if)
-  apply (clarsimp simp: non_empty_def)
-  done
+  by (clarsimp simp: non_empty_def)
 
 lemma refine_no_restrict: "valid_command a \<Longrightarrow> valid_command b \<Longrightarrow> fst a = fst b \<Longrightarrow> snd a \<subseteq> snd b \<Longrightarrow> a \<preceq> b"
   by (metis refine_refl refinement_order_def valid_restrict_eq)
@@ -1580,6 +1525,12 @@ lemma agree_intersection_restrict: "m |` (c \<inter> d) = m' |` (c \<inter> d) \
    apply (drule_tac x=x in fun_cong, clarsimp split: if_splits)
   by fastforce
 
+lemma valid_zip_trace: "valid_command a \<Longrightarrow> valid_command b \<Longrightarrow> x \<in> snd a \<Longrightarrow> y \<in> snd b \<Longrightarrow> 
+    valid_command (fst a \<union> fst b, {zip_trace (++) x y})"
+ apply (rule valid_singletonI[where n="min (the (lengthS x)) (the (lengthS y))"])
+ apply (smt (verit, ccfv_SIG) dom_map_add index_zip_Inl_iff sum.disc(1) sum.sel(1) sup_commute valid_dom_eq)
+   apply (metis lengthS_zip non_empty_def option.distinct(1) valid_command_def)
+  by (metis gr_zeroI min_def non_empty_def option.sel valid_command_def)
 
 lemma relational_join_combination: 
  "valid_command a \<Longrightarrow> valid_command b \<Longrightarrow> 
@@ -1623,13 +1574,7 @@ lemma relational_join_combination:
    apply (rule_tac x="zip_trace (++) x c'" in exI)
    apply (intro conjI)
      apply (rule in_cylI[where c="fst a"], clarsimp, clarsimp)
-  apply (rule valid_singletonI)
-       apply (smt (verit, ccfv_SIG) dom_map_add index_zip_Inl_iff sum.disc(1) sum.sel(1) sup_commute valid_dom_eq)
-      apply (clarsimp)
-      apply (clarsimp simp: lengthS_zip split: if_splits)
-        apply (metis lengthS_restrict option.distinct(1))
-  apply (metis lengthS_restrict option.distinct(1))
-      apply (metis min_def non_empty_def valid_command_def)
+  using valid_zip_trace apply blast
      apply (rule_tac x=x in exI)
      apply (clarsimp)
      apply (intro trace_eqI)
@@ -1643,14 +1588,9 @@ lemma relational_join_combination:
   apply (metis sum.disc(1) sum.sel(1) valid_dom_eq)
   using map_trace_eqD apply fastforce
      apply (metis (mono_tags, lifting) index_zip_iff sum.disc(2) symbols.exhaust)
-     apply (rule in_cylI[where c="fst b"], clarsimp, clarsimp)
-  apply (rule valid_singletonI)
-       apply (smt (verit, ccfv_SIG) dom_map_add index_zip_Inl_iff sum.disc(1) sum.sel(1) sup_commute valid_dom_eq)
-      apply (clarsimp)
-      apply (clarsimp simp: lengthS_zip split: if_splits)
-        apply (metis lengthS_restrict option.distinct(1))
-  apply (metis lengthS_restrict option.distinct(1))
-      apply (metis min_def non_empty_def valid_command_def)
+    apply (rule in_cylI[where c="fst b"], clarsimp, clarsimp)
+  using valid_zip_trace apply blast
+
      apply (rule_tac x=c' in exI)
      apply (clarsimp)
      apply (intro trace_eqI)
@@ -1709,8 +1649,10 @@ lemma finiteS_modify[simp]: "finiteS (modify n f t) \<longleftrightarrow> finite
   by (metis isl_map_sum)
 
 lemma lengthS_modify[simp]: "lengthS (modify n f t) = lengthS t"
-  apply (clarsimp simp: lengthS_def)
-  by (metis index_modify_iff isl_map_sum)
+  apply (rule lengthS_eqI)
+  apply (clarsimp simp: index_modify_iff)
+  using finiteS_def isl_map_sum lengthS_none_infinite apply blast
+  by (simp add: index_modify_iff isl_iff isl_map_sum)
 
 lemma lengthS_some_finite[simp]: "lengthS t = Some m \<Longrightarrow> finiteS t"
   by (metis lengthS_def option.distinct(1))
@@ -1721,6 +1663,21 @@ lemma last_modify_last: "lengthS t = (Some m) \<Longrightarrow> n = m - 1 \<Long
     apply (clarsimp simp: index_modify_iff)
     apply (simp add: index_map_eqD index_map_sum)
   by (metis diff_Suc_less isl_iff lengthS_modify sum.disc(2))
+
+lemma valid_restrict_trace: "valid_command a \<Longrightarrow> t \<in> snd a \<Longrightarrow> d \<subseteq> fst a \<Longrightarrow>   valid_command (d, {restrict_trace (d) t})"
+  apply (rule valid_singletonI[where n="the (lengthS t)"]; clarsimp?)
+  apply (metis (mono_tags, opaque_lifting) fst_conv imageI snd_conv sum.disc(1) sum.sel(1) valid_dom_eq valid_resI)
+
+   apply (metis non_empty_def option.collapse option.distinct(1) valid_command_def)
+  by (metis gr0I non_empty_def option.sel valid_command_def)
+
+lemma valid_map_trace: "valid_command a \<Longrightarrow> t \<in> snd a \<Longrightarrow> (\<And>s n. index t n = Inl s \<Longrightarrow> dom (f s) = d) \<Longrightarrow> 
+   valid_command (d,  {map_trace f t})"
+  apply (rule valid_singletonI[where n="the (lengthS t)"]; clarsimp?)
+    apply (erule index_map_eqE)
+    apply auto[1]
+   apply (metis non_empty_def option.collapse option.distinct(1) valid_command_def)
+  by (metis gr0I non_empty_def option.sel valid_command_def)
 
 lemma gluing_seq_combination: 
  "valid_command a \<Longrightarrow> valid_command b \<Longrightarrow> 
@@ -1755,11 +1712,7 @@ apply (drule in_cylD[rotated 2])
       apply (rule in_cylI)
          apply (erule valid_resI, clarsimp)
         apply (clarsimp)
-       apply (rule valid_singletonI)
-        apply (smt (verit, best) Un_Int_eq(1) dom_on_state_eq fst_conv image_eqI 
-                insertCI restrict_def snd_conv sum.disc(1) sum.sel(1) sup_ge1 
-                valid_command_def valid_valid_restrict)
-       apply (metis lengthS_restrict non_empty_def valid_command_def)
+  apply (erule valid_restrict_trace, fastforce, fastforce)
       apply (clarsimp)
       apply (rule_tac x="restrict_trace (fst b) xb" in bexI)
   apply (simp add: restrict_restrict_trace)
@@ -1784,25 +1737,7 @@ apply (drule in_cylD[rotated 2])
    apply (clarsimp)
    apply (clarsimp simp: gluing_seq'_def restrict_seq match_restrict)
    apply (case_tac "lengthS xa = None", clarsimp simp: inf_left_glue_left)
-    apply (rule_tac x="map_trace (\<lambda>s. junk (fst b) ++ s ) xa" in bexI)
-     apply (subst restrict_add_junk)
-       apply (erule valid_command_prod)
-      apply (clarsimp)
-     apply (clarsimp simp: inf_left_glue_left)
-     apply (subgoal_tac "\<not>finiteS (map_trace ((++) (junk (fst b))) xa)") 
-  apply (clarsimp simp: match_def)
-      apply (metis all_not_in_conv galois_inj image_empty prod.exhaust_sel sup_ge2)
-     apply (metis finite_map_iff lengthS_def option.distinct(1))
-    apply (rule in_cylI)
-       apply (erule valid_command_prod)
-      apply (blast)
-apply (rule valid_singletonI)
-      apply (erule index_map_eqE; clarsimp)
-      apply (simp add: valid_dom_eq)
-     apply (clarsimp)
-    apply (rule_tac x=xa in exI)
-    apply (clarsimp)
-  apply (meson restrict_add_junk valid_command_prod)
+  apply (metis non_empty_def option.distinct(1) valid_command_def)
    apply (rule_tac x=" (map_trace (\<lambda>s. the (first c') ++ s ) xa)" in bexI)
     apply (rule_tac x="zip_trace (++) c' xb" in bexI)
      apply (intro conjI)
@@ -1827,11 +1762,8 @@ apply (rule valid_singletonI)
      apply (metis prod.collapse restrict_add_junk)
     apply (rule in_cylI)
        apply (erule valid_command_prod, blast)
-     apply (rule valid_singletonI)
-      apply (smt (verit, ccfv_threshold) dom_map_add fst_conv index_zip_Inl_iff
-        insertCI snd_conv sum.disc(1) sum.sel(1) valid_dom_eq)
-     apply (metis (no_types, lifting) first_None_iff' lengthS_def 
-           lengthS_zip match_empty_iff min_def option.exhaust_sel valid_has_first)
+  using valid_zip_trace 
+  apply (metis fst_conv insertCI snd_conv sup_commute)
     apply (rule_tac x=c' in exI)
     apply (clarsimp)
       apply (rule trace_eqI; clarsimp simp: restrict_trace_def map_zip)
@@ -1840,13 +1772,7 @@ apply (rule valid_singletonI)
     apply (metis (mono_tags, lifting) lengthS_map_eq length_eq_isl_iff sum.collapse(2) symbols.exhaust)
    apply (rule in_cylI)
       apply (erule valid_command_prod, blast)
-    apply (rule valid_singletonI)
-     apply (erule index_map_eqE)
-     apply (clarsimp simp: first_def)
-  apply (case_tac "index c' 0"; clarsimp)
-      apply (metis sum.disc(1) sum.sel(1) valid_dom_eq)
-     apply (metis first_def sum.case_eq_if sum.disc(2) valid_has_first)
-    apply (metis first_None_iff' lengthS_map_eq valid_has_first)
+  apply (metis (no_types, lifting) dom_map_add first_def option.sel sum.case_eq_if sum.disc(1) sum.sel(1) valid_dom_eq valid_has_first valid_map_trace)
    apply (rule_tac x=xa in exI)
    apply (meson restrict_add_junk valid_command_prod)
   apply (blast)
@@ -1915,11 +1841,11 @@ lemma test_seq_neutral_r: "valid_command c \<Longrightarrow> (c \<Zsemi> test (f
     apply (subst glue_l1_trace)
       apply (clarsimp simp: lengthS_takeS_min')
      apply (clarsimp simp: match_def first_def index_take index_consts)
-  apply (metis first_None_iff lengthS_constS lengthS_takeS_min' match_def match_empty_iff non_empty_def option.collapse valid_command_def)
-    apply (clarsimp simp: last_def)
+     apply (metis first_None_iff lengthS_constS lengthS_takeS_min' match_def match_empty_iff option.collapse valid_has_first)
+  apply (clarsimp)
+   apply (clarsimp simp: match_def first_def index_take index_consts)
+     apply (metis first_None_iff lengthS_constS lengthS_takeS_min' match_def match_empty_iff option.collapse valid_has_first)
 
-     apply (clarsimp simp: match_def first_def index_take index_consts)
-   apply (metis first_None_iff lengthS_constS lengthS_takeS_min' match_def match_empty_iff non_empty_def option.collapse valid_command_def)
   apply (rule_tac x="takeS 1 (constS (junk (fst c)))" in exI)
   apply (clarsimp)
   apply (intro conjI)
@@ -1977,7 +1903,7 @@ lemma test_d_par: "test d \<preceq> relational_join (test d) (test d)"
   apply (clarsimp )
   by (metis refine_refl rel_join_inf_iff valid_test)
 
-definition "univ_t a = (a, {t. lengthS t \<noteq> Some 0 \<and> (\<forall>n. case_sum dom (\<lambda>_. a) (index t n) = a)})"
+definition "univ_t a = (a, {t. (\<exists>n. lengthS t = Some n \<and> n > 0) \<and> (\<forall>n. case_sum dom (\<lambda>_. a) (index t n) = a)})"
 
 lemma univ_t_dom[simp]: "fst (univ_t a) = a" by (clarsimp simp: univ_t_def)
 
@@ -2013,7 +1939,7 @@ lemma rel_join_neutral_l: "valid_command c \<Longrightarrow> (relational_join (u
   apply (clarsimp simp: cyl_dom)
   apply (clarsimp simp: univ_t_def)
   apply (intro conjI)
-   apply (metis first_None_iff' valid_has_first)
+  apply (simp add: non_empty_def valid_command_def)
   apply (clarsimp)
   by (simp add: sum.case_eq_if valid_dom_eq)
 
@@ -2026,11 +1952,177 @@ lemma univ_t_seq_ref: "((univ_t d) \<Zsemi> (univ_t d))  \<preceq> (univ_t d)"
   apply (clarsimp simp: lift_op_def conv_def gluing_seq'_def)
   apply (clarsimp simp: univ_t_def)
   apply (intro conjI)
-   apply (metis finiteS_glue le_zero_eq lengthS_def lengthS_glue_le)
+  apply (metis finiteS_glue lengthS_def lengthS_glue_le order_less_le_trans)
   apply (clarsimp)
   by (metis finite_index_iff index_tail_iff infinite_index_iff)
 
 
+lemma valid_command_gluing: "valid_command (C, c) \<Longrightarrow> valid_command (C', c') \<Longrightarrow> C \<subseteq> D \<Longrightarrow> C' \<subseteq> D \<Longrightarrow> 
+ valid_command (D, conv gluing_seq' (c \<rhd> D) (c' \<rhd> D))"
+  apply (rule valid_commandI)
+   apply (rule same_domI)
+   apply (clarsimp)
+   apply (clarsimp simp: conv_def)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (case_tac "index t n"; clarsimp)
+   defer
+   apply (clarsimp simp: non_empty_def)
+ apply (clarsimp simp: conv_def)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (clarsimp simp: gluing_seq'_def)
+  apply (subgoal_tac "lengthS x \<noteq> Some 0") 
+    apply (metis finiteS_glue finite_index_iff isl_iff lengthS_def lengthS_restrict
+     non_empty_def not_gr0 option.sel snd_conv valid_command_def)
+   apply (metis first_None_iff' singletonI snd_conv valid_has_first)
+  apply (clarsimp simp: gluing_seq'_def)
+  by (smt (verit, best) finite_index_iff fst_conv glue_def index_tail_iff 
+      singletonI snd_conv sum.disc(1) sum.sel(1) valid_dom_eq)
+
+lemma index_cong: "x = y \<Longrightarrow> index x n = index y n"
+  apply (blast)
+  done
+
+lemma cyl_conv_gluing: "valid_command (C, c) \<Longrightarrow> valid_command (C', c') \<Longrightarrow> C \<subseteq> D \<Longrightarrow> C' \<subseteq> D \<Longrightarrow> D \<subseteq> D' \<Longrightarrow> 
+(conv gluing_seq' (c \<rhd> D) (c' \<rhd> D) \<rhd> D') = conv gluing_seq' (c \<rhd> D') (c' \<rhd> D') "
+  apply (rule antisym)
+  apply (clarsimp)
+   apply (drule in_cylD[rotated 2, where c=D])
+  apply (rule valid_command_gluing, assumption, assumption, assumption, assumption, assumption)
+     apply (clarsimp)
+   apply (clarsimp simp: conv_def)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (drule in_cylD[rotated 2], assumption, assumption, clarsimp)
+   apply (clarsimp simp: gluing_seq'_def)
+   apply (case_tac "lengthS xa = None")
+    apply (clarsimp simp: inf_left_glue_left)
+  apply (simp add: non_empty_def valid_command_def)
+   apply (rule_tac x="takeS (the (lengthS xa)) x" in bexI)
+    apply (rule_tac x="dropS (the (lengthS xa) - 1) x" in bexI)
+     apply (intro conjI)
+      apply (metis first_None_iff' lengthS_def lengthS_glue_le lengthS_restrict option.sel 
+partition_glue partition_glue' snd_conv valid_has_first)
+     apply (metis lengthS_def lengthS_glue_le lengthS_restrict non_empty_def option.sel
+               partition_glue partition_glue' snd_conv valid_command_def)
+    apply (rule in_cylI, assumption)
+      apply (fastforce)
+  apply (rule valid_dropS, assumption, clarsimp, clarsimp)
+     apply (metis One_nat_def add_diff_inverse_nat first_None_iff' le_zero_eq lengthS_glue_le lengthS_restrict nat_diff_split not_less_eq_eq plus_1_eq_Suc snd_conv valid_has_first)
+    apply (rule_tac x=" restrict_trace C' xb" in exI)
+    apply (clarsimp)
+    apply (intro trace_eqI)
+    apply (clarsimp simp: restrict_trace_def)
+    apply (clarsimp simp: index_map_sum index_drop)
+  apply (case_tac "n=0"; clarsimp)
+       apply (drule_tac n="( (y - Suc 0))" in index_cong)
+       apply (subst (asm) finite_index_iff)
+  using lengthS_some_finite apply blast
+     apply (clarsimp simp: index_map_sum split: if_splits)
+      apply (clarsimp simp: match_def last_def first_def split: sum.splits)
+       apply (metis (no_types, lifting) inf.absorb_iff2 isl_map_sum map_sum_sel(1) restrict_restrict sum.collapse(1) sum.disc(1) sum.sel(1))
+      apply (metis isl_iff sum.disc(2))
+     apply (metis Suc_pred bot_nat_0.not_eq_extremum first_None_iff' lessI singletonI snd_conv valid_has_first)
+    apply (drule_tac n="(n + (y - Suc 0))" in index_cong)
+    apply (subst (asm) finite_index_iff)
+  using lengthS_some_finite apply blast
+    apply (clarsimp simp: index_map_sum split: if_splits)
+     apply linarith
+    apply (clarsimp simp: index_tail_iff split: sum.splits)
+  apply (case_tac "index x (n + (y - Suc 0))"; clarsimp simp: isl_map_sum)
+     apply (metis (no_types, lifting) One_nat_def Suc_pred add_diff_cancel_right bot_nat_0.not_eq_extremum
+          inf.absorb_iff2 isl_map_sum lengthS_map_eq map_sum_sel(1) non_empty_def option.sel
+           plus_1_eq_Suc restrict_restrict snd_conv sum.collapse(1) sum.disc(1) sum.sel(1) valid_command_def)
+    apply (smt (verit, best) One_nat_def Suc_diff_eq_diff_pred add_implies_diff isl_iff isl_map_sum isl_monotone leI
+ lengthS_some_finite match_empty_iff nat_less_le ordered_cancel_comm_monoid_diff_class.diff_add_assoc 
+plus_1_eq_Suc sum.collapse(2) symbols.exhaust zero_less_iff_neq_zero)
+ apply (rule in_cylI, assumption)
+      apply (fastforce)
+    apply (rule valid_takeS, assumption, clarsimp, clarsimp)
+  apply (metis first_None_iff' gr_zeroI singletonI snd_conv valid_has_first)
+   apply (rule_tac x=" restrict_trace C xa" in exI)
+   apply (clarsimp)
+
+    apply (intro trace_eqI)
+    apply (clarsimp simp: restrict_trace_def)
+   apply (clarsimp simp: index_map_sum index_drop index_take, intro conjI impI)
+    apply (drule_tac n="n" in index_cong)
+    apply (subst (asm) finite_index_iff)
+  using lengthS_some_finite apply blast
+    apply (clarsimp simp: index_map_sum split: if_splits)
+    apply (case_tac "index x n"; clarsimp simp: isl_map_sum)
+    apply (simp add: Int_commute inf.order_iff)
+   apply (metis isl_iff isl_map_sum sum.collapse(2) symbols.exhaust)
+  apply (subst restrict_cyl_galois_sets[symmetric])
+     apply (rule valid_command_gluing, assumption+)
+  apply (rule valid_command_gluing, assumption+)
+
+     apply (fastforce)
+  apply (fastforce)
+  apply (fastforce)
+  apply (clarsimp simp: conv_def gluing_seq_def)
+
+  apply (drule in_cylD[rotated 2], fastforce, fastforce)
+  apply (clarsimp)
+
+  apply (drule in_cylD[rotated 2], fastforce, fastforce)
+  apply (clarsimp)
+  apply (clarsimp simp: gluing_seq'_def)
+  apply (clarsimp simp: restrict_seq)
+  apply (rule_tac x="restrict_trace D xb" in bexI)
+   apply (rule_tac x="restrict_trace D y" in bexI)
+    apply (intro conjI)
+     apply (clarsimp)
+    apply (simp add: match_restrict)
+   apply (simp add: in_cylI restrict_restrict_trace valid_restrict_trace)
+  apply (simp add: in_cylI restrict_restrict_trace valid_restrict_trace)
+  done
+  
+
+lemma gseq_assoc: "valid_command c \<Longrightarrow> valid_command d \<Longrightarrow> valid_command e \<Longrightarrow> (c \<Zsemi> (d \<Zsemi> e)) = ((c \<Zsemi> d) \<Zsemi> e)"
+  apply (rule refine_asym)  
+     apply (simp add: valid_gluing_seq)
+  apply (simp add: valid_gluing_seq)
+   apply (rule refine_no_restrict)
+  apply (simp add: valid_gluing_seq)
+  apply (simp add: valid_gluing_seq)
+    apply (clarsimp simp: lift_op_def Let_unfold)
+    apply blast
+   apply (clarsimp simp: lift_op_def Let_unfold)
+   apply (subst (asm) cyl_conv_gluing)
+        apply (erule valid_command_prod)
+  apply (erule valid_command_prod)
+      apply (fastforce)
+     apply (fastforce)
+    apply (fastforce)
+   apply (subst  cyl_conv_gluing)
+ apply (erule valid_command_prod)
+  apply (erule valid_command_prod)
+      apply (fastforce)
+     apply (fastforce)
+    apply (fastforce)
+   apply (metis (no_types, lifting) gluing_seq_assoc sup_assoc sup_ge1 valid_cylI')
+   apply (rule refine_no_restrict)
+  apply (simp add: valid_gluing_seq)
+  apply (simp add: valid_gluing_seq)
+    apply (clarsimp simp: lift_op_def Let_unfold)
+    apply blast
+   apply (clarsimp simp: lift_op_def Let_unfold)
+   apply (subst (asm) cyl_conv_gluing)
+        apply (erule valid_command_prod)
+  apply (erule valid_command_prod)
+      apply (fastforce)
+     apply (fastforce)
+    apply (fastforce)
+   apply (subst  cyl_conv_gluing)
+ apply (erule valid_command_prod)
+  apply (erule valid_command_prod)
+      apply (fastforce)
+     apply (fastforce)
+    apply (fastforce)
+  apply (metis (no_types, lifting) gluing_seq_assoc sup_assoc sup_ge1 valid_cylI')
+  done
+  
 
 
 end

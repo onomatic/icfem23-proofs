@@ -71,7 +71,8 @@ lemma map_traceDom[simp]: "(\<lambda>n. case_sum (Inl o f o projl) (Inr) (index 
   apply (transfer, clarsimp simp: traceDom_def)
   done
 
-lemma trace_eqI: "(\<And>n. index c n = index d n) \<Longrightarrow> c = d" sorry
+lemma trace_eqI: "(\<And>n. index c n = index d n) \<Longrightarrow> c = d" 
+  by (transfer, intro ext, fastforce)
 
 definition appendS :: " ('state, 'sym) trace \<Rightarrow>  ('state, 'sym) trace \<Rightarrow>  ('state, 'sym) trace"
   where "appendS s s' \<equiv> 
